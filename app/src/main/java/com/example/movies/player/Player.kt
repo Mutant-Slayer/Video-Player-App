@@ -19,8 +19,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -30,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -39,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,12 +57,17 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaItem.DrmConfiguration
 import androidx.media3.common.Player
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.compose.PlayerSurface
 import com.example.movies.R
 import kotlinx.coroutines.delay
@@ -63,10 +76,25 @@ import java.util.concurrent.TimeUnit
 private const val REWIND_MS = 10000
 private const val UPDATE_INTERVAL = 1000L
 
+data class VideoTrackInfo(
+    val format: Format,
+    val trackGroup: TrackGroup,
+    val trackIndex: Int
+)
+
 @OptIn(UnstableApi::class)
 @Composable
-fun rememberExoPlayer(onVideoSizeChanged: (Float) -> Unit): ExoPlayer {
+fun rememberExoPlayer(
+    onVideoSizeChanged: (Float) -> Unit,
+    onVideoTracksChanged: (List<VideoTrackInfo>) -> Unit,
+): ExoPlayer {
     val context = LocalContext.current
+    val trackSelector = remember {
+        DefaultTrackSelector(context).apply {
+            setParameters(buildUponParameters().setMaxVideoSizeSd())
+        }
+    }
+
     return remember {
         val mediaItem = MediaItem.Builder().apply {
             setUri(Utils.STREAM_URL)
@@ -77,6 +105,7 @@ fun rememberExoPlayer(onVideoSizeChanged: (Float) -> Unit): ExoPlayer {
             )
         }
         ExoPlayer.Builder(context)
+            .setTrackSelector(trackSelector)
             .setSeekBackIncrementMs(REWIND_MS.toLong())
             .setSeekForwardIncrementMs(REWIND_MS.toLong()).build().apply {
                 playbackParameters = playbackParameters.withSpeed(1.0f)
@@ -89,6 +118,27 @@ fun rememberExoPlayer(onVideoSizeChanged: (Float) -> Unit): ExoPlayer {
                             val aspectRatio = videoWidth / videoHeight
                             onVideoSizeChanged(aspectRatio)
                         }
+                    }
+
+                    override fun onTracksChanged(tracks: Tracks) {
+                        val trackList = mutableListOf<VideoTrackInfo>()
+                        tracks.groups.forEachIndexed { groupIndex, group ->
+                            if (group.type == C.TRACK_TYPE_VIDEO) {
+                                for (trackIndex in 0 until group.length) {
+                                    if (group.isTrackSupported(trackIndex)) {
+                                        val format = group.getTrackFormat(trackIndex)
+                                        trackList.add(
+                                            VideoTrackInfo(
+                                                format,
+                                                group.mediaTrackGroup,
+                                                trackIndex
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        onVideoTracksChanged(trackList)
                     }
                 })
                 setMediaItem(mediaItem.build())
@@ -108,14 +158,32 @@ fun PlayerScreen(modifier: Modifier = Modifier) {
     var isPlaying by remember { mutableStateOf(true) }
     var isBuffering by remember { mutableStateOf(false) }
     val lifecycleEvent = rememberLifecycleEvent()
-
     var currentPosition by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var isSeeking by remember { mutableStateOf(false) }
     var seekPosition by remember { mutableFloatStateOf(0f) }
+    val videoTracks = remember { mutableStateListOf<VideoTrackInfo>() }
+    var selectedTrackInfo by remember { mutableStateOf<VideoTrackInfo?>(null) }
 
-    val player = rememberExoPlayer { aspectRatio ->
-        videoAspectRatio = aspectRatio
+    val player = rememberExoPlayer(
+        onVideoSizeChanged = { videoAspectRatio = it },
+        onVideoTracksChanged = {
+            videoTracks.clear()
+            videoTracks.addAll(it)
+        }
+    )
+
+    fun selectVideoTrack(trackInfo: VideoTrackInfo) {
+        player.trackSelectionParameters =
+            player.trackSelectionParameters.buildUpon()
+                .setOverrideForType(
+                    TrackSelectionOverride(
+                        trackInfo.trackGroup,
+                        trackInfo.trackIndex
+                    )
+                )
+                .build()
+        selectedTrackInfo = trackInfo
     }
 
     LaunchedEffect(player) {
@@ -203,6 +271,10 @@ fun PlayerScreen(modifier: Modifier = Modifier) {
                 isBuffering = isBuffering,
                 currentPosition = currentPosition,
                 duration = duration,
+                videoTracks = videoTracks,
+                onQualitySelected = { trackInfo ->
+                    selectVideoTrack(trackInfo)
+                },
                 onPositionChange = { position ->
                     isSeeking = true
                     seekPosition = position
@@ -261,6 +333,8 @@ fun VideoOverlay(
     isBuffering: Boolean,
     currentPosition: Long,
     duration: Long,
+    videoTracks: List<VideoTrackInfo>,
+    onQualitySelected: (VideoTrackInfo) -> Unit,
     onPositionChange: (Float) -> Unit,
     onSeekCompleted: () -> Unit,
     onExpandClick: () -> Unit,
@@ -269,6 +343,26 @@ fun VideoOverlay(
     onRewindClick: () -> Unit
 ) {
     Box(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (videoTracks.isNotEmpty()) {
+                VideoQualityButton(
+                    videoTracks = videoTracks,
+                    onQualitySelected = onQualitySelected
+                )
+            }
+            PlaybackButton(
+                resourceId = if (isFullScreen) R.drawable.ic_collapse else R.drawable.ic_expand,
+                description = if (isFullScreen) "Exit Fullscreen" else "Enter Fullscreen"
+            ) {
+                onExpandClick()
+            }
+        }
+
         PlaybackControls(
             modifier = Modifier.matchParentSize(),
             isFullScreen = isFullScreen,
@@ -434,6 +528,84 @@ fun rememberLifecycleEvent(lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.
         }
     }
     return state
+}
+
+@Composable
+fun VideoQualityButton(
+    modifier: Modifier = Modifier,
+    videoTracks: List<VideoTrackInfo>,
+    onQualitySelected: (VideoTrackInfo) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .wrapContentSize(Alignment.TopEnd)
+            .background(Color.Black)
+            .padding(8.dp)
+            .clickable { expanded = true }
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "Quality",
+                color = Color.White,
+                fontSize = 14.sp
+            )
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = "Select Quality",
+                tint = Color.White
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(Color.Black)
+        ) {
+            Text(
+                text = "Video Quality",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(8.dp)
+            )
+
+            videoTracks.forEach { trackInfo ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = formatTrackName(trackInfo),
+                            color = Color.White
+                        )
+                    },
+                    onClick = {
+                        onQualitySelected(trackInfo)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(UnstableApi::class)
+private fun formatTrackName(trackInfo: VideoTrackInfo): String {
+    val format = trackInfo.format
+    val width = format.width
+    val height = format.height
+
+    val resolution = if (width > 0 && height > 0) "${width}x${height}" else "Unknown"
+
+    return when {
+        height >= 2160 -> "4K ($resolution)"
+        height >= 1080 -> "FHD ($resolution)"
+        height >= 720 -> "HD ($resolution)"
+        height >= 480 -> "SD ($resolution)"
+        else -> "Low quality ($resolution)"
+    }.trim()
 }
 
 fun formatDuration(milliseconds: Long): String {
