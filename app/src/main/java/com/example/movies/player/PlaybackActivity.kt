@@ -15,8 +15,14 @@ import com.example.movies.ui.theme.MoviesTheme
 class PlaybackActivity : ComponentActivity() {
 
     companion object {
-        fun newInstance(context: Context): Intent {
-            return Intent(context, PlaybackActivity::class.java)
+        const val VIDEO_URL = "video_url"
+        const val LICENSE_URL = "license_url"
+
+        fun newInstance(context: Context, videoUrl: String, licenseUrl: String): Intent {
+            return Intent(context, PlaybackActivity::class.java).apply {
+                putExtra(VIDEO_URL, videoUrl)
+                putExtra(LICENSE_URL, licenseUrl)
+            }
         }
     }
 
@@ -29,7 +35,10 @@ class PlaybackActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    PlayerScreen()
+                    PlayerScreen(
+                        videoUrl = intent.getStringExtra(VIDEO_URL)!!,
+                        licenseUrl = intent.getStringExtra(LICENSE_URL)!!
+                    )
                 }
             }
         }

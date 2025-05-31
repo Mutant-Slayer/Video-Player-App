@@ -85,6 +85,8 @@ data class VideoTrackInfo(
 @OptIn(UnstableApi::class)
 @Composable
 fun rememberExoPlayer(
+    videoUrl: String,
+    licenseUrl: String,
     onVideoSizeChanged: (Float) -> Unit,
     onVideoTracksChanged: (List<VideoTrackInfo>) -> Unit,
 ): ExoPlayer {
@@ -97,10 +99,10 @@ fun rememberExoPlayer(
 
     return remember {
         val mediaItem = MediaItem.Builder().apply {
-            setUri(Utils.STREAM_URL)
+            setUri(videoUrl)
             setDrmConfiguration(
                 DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                    .setLicenseUri(Utils.LICENSE_URL)
+                    .setLicenseUri(licenseUrl)
                     .build()
             )
         }
@@ -150,7 +152,7 @@ fun rememberExoPlayer(
 
 @OptIn(UnstableApi::class)
 @Composable
-fun PlayerScreen(modifier: Modifier = Modifier) {
+fun PlayerScreen(modifier: Modifier = Modifier, videoUrl: String, licenseUrl: String) {
     val context = LocalContext.current
     var isFullScreen by remember { mutableStateOf(false) }
     var videoAspectRatio by remember { mutableFloatStateOf(16f / 9f) }
@@ -166,6 +168,8 @@ fun PlayerScreen(modifier: Modifier = Modifier) {
     var selectedTrackInfo by remember { mutableStateOf<VideoTrackInfo?>(null) }
 
     val player = rememberExoPlayer(
+        videoUrl = videoUrl,
+        licenseUrl = licenseUrl,
         onVideoSizeChanged = { videoAspectRatio = it },
         onVideoTracksChanged = {
             videoTracks.clear()
