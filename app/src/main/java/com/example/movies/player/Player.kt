@@ -100,11 +100,13 @@ fun rememberExoPlayer(
     return remember {
         val mediaItem = MediaItem.Builder().apply {
             setUri(videoUrl)
-            setDrmConfiguration(
-                DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                    .setLicenseUri(licenseUrl)
-                    .build()
-            )
+            if (licenseUrl.isNotEmpty()) {
+                setDrmConfiguration(
+                    DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                        .setLicenseUri(licenseUrl)
+                        .build()
+                )
+            }
         }
         ExoPlayer.Builder(context)
             .setTrackSelector(trackSelector)
