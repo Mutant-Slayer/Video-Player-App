@@ -4,6 +4,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val major = 1
+val minor = 0
+val patch = 0
+
 android {
     namespace = "com.example.movies"
     compileSdk = 35
@@ -12,8 +16,8 @@ android {
         applicationId = "com.example.movies"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = major * 10000 + minor * 100 + patch
+        versionName = "$major.$minor.$patch"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

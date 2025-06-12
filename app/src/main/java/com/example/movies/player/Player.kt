@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
+import androidx.annotation.Keep
 import androidx.annotation.OptIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -76,6 +77,7 @@ import java.util.concurrent.TimeUnit
 private const val REWIND_MS = 10000
 private const val UPDATE_INTERVAL = 1000L
 
+@Keep
 data class VideoTrackInfo(
     val format: Format,
     val trackGroup: TrackGroup,
