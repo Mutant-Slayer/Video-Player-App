@@ -70,7 +70,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.compose.PlayerSurface
-import com.example.movies.R
+import com.anas.video.player.R
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 

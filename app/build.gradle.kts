@@ -9,11 +9,11 @@ val minor = 0
 val patch = 0
 
 android {
-    namespace = "com.example.movies"
+    namespace = "com.anas.video.player"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.movies"
+        applicationId = "com.anas.video.player"
         minSdk = 24
         targetSdk = 35
         versionCode = major * 10000 + minor * 100 + patch
