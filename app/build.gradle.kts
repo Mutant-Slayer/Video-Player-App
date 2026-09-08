@@ -10,12 +10,12 @@ val patch = 0
 
 android {
     namespace = "com.anas.video.player"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.anas.video.player"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = major * 10000 + minor * 100 + patch
         versionName = "$major.$minor.$patch"
 
