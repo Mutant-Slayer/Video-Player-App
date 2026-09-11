@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val major = 1
+val major = 2
 val minor = 0
 val patch = 0
 
